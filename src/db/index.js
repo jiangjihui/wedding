@@ -14,25 +14,77 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 // 初始化数据库表
 db.serialize(() => {
+  // 检查并创建表的函数
+  const createTableIfNotExists = (tableName, schema) => {
+    return new Promise((resolve, reject) => {
+      db.get(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [tableName], (err, row) => {
+        if (err) {
+          console.error(`检查${tableName}表存在性错误:`, err);
+          reject(err);
+          return;
+        }
+
+        if (!row) {
+          // 表不存在，创建新表
+          db.run(schema, (err) => {
+            if (err) {
+              console.error(`创建${tableName}表错误:`, err);
+              reject(err);
+            } else {
+              console.log(`${tableName}表创建成功`);
+              resolve();
+            }
+          });
+        } else {
+          // 表已存在，检查是否需要添加 created_at 列
+          db.all(`PRAGMA table_info(${tableName})`, (err, columns) => {
+            if (err) {
+              console.error(`检查${tableName}表结构错误:`, err);
+              reject(err);
+              return;
+            }
+
+            // 确保 columns 是数组并且有数据
+            if (Array.isArray(columns)) {
+              const hasCreatedAt = columns.some(col => col.name === 'created_at');
+              if (!hasCreatedAt) {
+                // 添加 created_at 列，但不修改现有数据的时间戳
+                db.run(`ALTER TABLE ${tableName} ADD COLUMN created_at DATETIME`, (err) => {
+                  if (err) {
+                    console.error(`添加created_at列到${tableName}表错误:`, err);
+                    reject(err);
+                  } else {
+                    console.log(`${tableName}表添加created_at列成功`);
+                    resolve();
+                  }
+                });
+              } else {
+                resolve();
+              }
+            } else {
+              console.error(`获取${tableName}表结构信息格式错误:`, columns);
+              resolve(); // 即使获取结构信息失败，也不影响表的使用
+            }
+          });
+        }
+      });
+    });
+  };
+
   // 创建照片表
-  db.run(`
-    CREATE TABLE IF NOT EXISTS photos (
+  createTableIfNotExists('photos', `
+    CREATE TABLE photos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       url TEXT NOT NULL,
       description TEXT,
-      order_num INTEGER DEFAULT 0 NOT NULL
+      order_num INTEGER DEFAULT 0 NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `, (err) => {
-    if (err) {
-      console.error('创建照片表错误:', err);
-    } else {
-      console.log('照片表创建成功');
-    }
-  });
+  `).catch(err => console.error('照片表初始化错误:', err));
 
   // 创建宾客信息表
-  db.run(`
-    CREATE TABLE IF NOT EXISTS guests (
+  createTableIfNotExists('guests', `
+    CREATE TABLE guests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       phone TEXT NOT NULL,
@@ -40,36 +92,18 @@ db.serialize(() => {
       attendance TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `);
+  `).catch(err => console.error('宾客表初始化错误:', err));
 
-  // 修改点赞表，确保有 created_at 字段
-  db.run(`
-    CREATE TABLE IF NOT EXISTS likes_new (
+  // 创建点赞表
+  createTableIfNotExists('likes', `
+    CREATE TABLE likes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ip TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `);
+  `).catch(err => console.error('点赞表初始化错误:', err));
 
-  // 迁移现有数据
-  db.run(`
-    INSERT INTO likes_new (id, ip)
-    SELECT id, ip FROM likes
-  `);
-
-  // 删除旧表
-  db.run(`DROP TABLE IF EXISTS likes`);
-
-  // 重命名新表
-  db.run(`ALTER TABLE likes_new RENAME TO likes`);
-
-  // 添加索引以提高查询性能
-  db.run(`
-    CREATE INDEX IF NOT EXISTS idx_likes_created_at 
-    ON likes(created_at)
-  `);
-
-  // 添加测试数据
+  // 添加测试数据（仅在照片表为空时）
   db.get('SELECT COUNT(*) as count FROM photos', (err, row) => {
     if (err) {
       console.error('检查照片数量错误:', err);

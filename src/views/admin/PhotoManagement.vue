@@ -50,7 +50,13 @@
       </van-list>
     </van-pull-refresh>
 
-    <van-dialog v-model:show="showUpload" title="上传照片">
+    <van-dialog 
+      v-model:show="showUpload" 
+      title="上传照片"
+      closeable
+      :before-close="handleBeforeClose"
+      class="upload-dialog"
+    >
       <van-form>
         <van-field
           v-model="uploadForm.url"
@@ -86,9 +92,16 @@
         </van-field>
       </van-form>
       <template #footer>
-        <van-button block type="primary" @click="handleUpload" :loading="loading">
-          上传
-        </van-button>
+        <div class="dialog-footer">
+          <van-button 
+            type="primary" 
+            class="footer-btn" 
+            @click="handleUpload" 
+            :loading="loading"
+          >
+            上传
+          </van-button>
+        </div>
       </template>
     </van-dialog>
   </div>
@@ -319,6 +332,61 @@ onMounted(() => {
       width: 100%;
       height: 200px;
       object-fit: cover;
+    }
+  }
+
+  :deep(.upload-dialog) {
+    .van-dialog__header {
+      padding: 20px 24px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #323233;
+      border-bottom: 1px solid #ebedf0;
+    }
+
+    .van-dialog__content {
+      padding: 20px 24px;
+    }
+
+    .dialog-footer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px 24px 24px;
+      border-top: 1px solid #ebedf0;
+
+      .footer-btn {
+        width: 240px;
+        height: 40px;
+        font-size: 16px;
+        border-radius: 20px;
+        background: linear-gradient(to right, #ff6b6b, #ff8e8e);
+        border: none;
+        
+        &:active {
+          opacity: 0.9;
+        }
+      }
+    }
+
+    .van-field {
+      padding: 16px 0;
+      
+      &__label {
+        color: #323233;
+        font-weight: 500;
+      }
+    }
+
+    .van-uploader {
+      &__upload {
+        border-radius: 8px;
+        background-color: #f7f8fa;
+        
+        &:active {
+          background-color: #e8e8e8;
+        }
+      }
     }
   }
 }
